@@ -15,7 +15,7 @@ def setup_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
+# test
 def main():
     # setup_seed(20)
 
