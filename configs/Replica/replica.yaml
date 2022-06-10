@@ -1,33 +1,33 @@
 dataset: 'replica'
 meshing:
-  eval_rec: True
+  eval_rec: True # whether to save the mesh at the final iteration for later evaluation. Saves mesh with more accurate mask and does not use the forecasting of the coarse grid
 tracking:
-  vis_freq: 50
-  vis_inside_freq: 25
-  ignore_edge_W: 100
+  vis_freq: 50 # frame frequency of visualizing the tracking performance
+  vis_inside_freq: 25 # iteration frequency of visualizing the tracking performance
+  ignore_edge_W: 100 # ignores to sample rays falling closer than the number to the edge of the image
   ignore_edge_H: 100
-  seperate_LR: False
-  const_speed_assumption: True
+  separate_LR: False # use separate learning rate for translation and rotation (quaternion). Uses 1/5 of the tracking.lr for the rotation
+  const_speed_assumption: True # if True, adds the previous relative pose change between the last two frames. If False, just copies the last known pose as initial solution.
   lr: 0.001
-  pixels: 200
-  iters: 10
+  pixels: 200 # number of sampled rays per frame
+  iters: 10 # how many iterations of optimizer per tracking stage
 mapping:
-  every_frame: 5
-  vis_freq: 50
-  vis_inside_freq: 30
-  mesh_freq: 50
-  ckpt_freq: 500
-  keyframe_every: 50
-  mapping_window_size: 5
-  pixels: 1000
-  iters_first: 1500
-  iters: 60
+  every_frame: 5 # map only every X frames
+  vis_freq: 50 # frame frequency of visualizing the mapping performance
+  vis_inside_freq: 30 # iteration frequency of visualizing the mapping performance
+  mesh_freq: 50 # meshing frame frequency
+  ckpt_freq: 500 # checkpoint saving frame frequency
+  keyframe_every: 50 # add frame to keyframe list every X frames
+  mapping_window_size: 5 # X - 2 keyframes used for BA and mapping. 2X used for color refinement step (if used)
+  pixels: 1000 # number of sampled rays per frame
+  iters_first: 1500 # how many iterations of optimizer for first frame
+  iters: 60 # how many iterations of optimizer per mapping stage
 cam:
-  H: 680
-  W: 1200
+  H: 680 # height of images in pixels
+  W: 1200 # width of images in pixels
   fx: 600.0
   fy: 600.0
   cx: 599.5
   cy: 339.5
-  png_depth_scale: 6553.5 #for depth image in png format
-  crop_edge: 0
+  png_depth_scale: 6553.5 # for depth image in png format. Divides the cv.imread image to get meters
+  crop_edge: 0 # crop depth and color image. The code adapts the intrinsics automatically
