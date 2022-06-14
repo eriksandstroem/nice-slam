@@ -40,7 +40,6 @@ class Mapper(object):
         self.renderer = slam.renderer
         self.low_gpu_mem = slam.low_gpu_mem
         self.mapping_idx = slam.mapping_idx
-        self.mapping_cnt = slam.mapping_cnt
         self.decoders = slam.shared_decoders
         self.estimate_c2w_list = slam.estimate_c2w_list
         self.mapping_first_frame = slam.mapping_first_frame
@@ -59,7 +58,6 @@ class Mapper(object):
         self.ckpt_freq = cfg["mapping"]["ckpt_freq"]
         self.fix_color = cfg["mapping"]["fix_color"]
         self.mapping_pixels = cfg["mapping"]["pixels"]
-        self.num_joint_iters = cfg["mapping"]["iters"]
         self.clean_mesh = cfg["meshing"]["clean_mesh"]
         self.every_frame = cfg["mapping"]["every_frame"]
         self.color_refine = cfg["mapping"]["color_refine"]
@@ -290,7 +288,7 @@ class Mapper(object):
     ):
         """
         Mapping iterations. Sample pixels from selected keyframes,
-        then optimize scene representation and camera poses(if local BA enables).
+        then optimize scene representation and camera poses(if local BA enabled).
 
         Args:
             num_joint_iters (int): number of mapping iterations.
@@ -307,7 +305,7 @@ class Mapper(object):
             cur_c2w/None (tensor/None): return the updated cur_c2w, return None if no BA
         """
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
-        c = self.c
+        c = self.c["active"]
         cfg = self.cfg
         device = self.device
         bottom = (
@@ -337,7 +335,7 @@ class Mapper(object):
 
         if self.save_selected_keyframes_info:
             keyframes_info = []
-            for id, frame in enumerate(optimize_frame):
+            for frame in optimize_frame:
                 if frame != -1:
                     frame_idx = keyframe_list[frame]
                     tmp_gt_c2w = keyframe_dict[frame]["gt_c2w"]
@@ -524,7 +522,7 @@ class Mapper(object):
                     cur_gt_depth,
                     cur_gt_color,
                     cur_c2w,
-                    self.c,
+                    self.c["active"],
                     self.decoders,
                 )
 
@@ -621,7 +619,7 @@ class Mapper(object):
                 weighted_color_loss = self.w_color_loss * color_loss
                 loss += weighted_color_loss
 
-            # for imap*, it use volume density
+            # for imap*, it uses volume density
             regulation = not self.occupancy
             if regulation:
                 point_sigma = self.renderer.regulation(
@@ -658,7 +656,7 @@ class Mapper(object):
         if self.BA:
             # put the updated camera poses back
             camera_tensor_id = 0
-            for id, frame in enumerate(optimize_frame):
+            for frame in optimize_frame:
                 if frame != -1:
                     if frame != oldest_frame:
                         c2w = get_camera_from_tensor(
@@ -800,15 +798,14 @@ class Mapper(object):
                     )
 
                 self.mapping_idx[0] = idx
-                self.mapping_cnt[0] += 1
 
                 if (idx % self.mesh_freq == 0) and (
                     not (idx == 0 and self.no_mesh_on_first_frame)
-                ):
+                ): # TODO: Need to feed inactive grid later after frame capture.
                     mesh_out_file = f"{self.output}/mesh/{idx:05d}_mesh.ply"
                     self.mesher.get_mesh(
                         mesh_out_file,
-                        self.c,
+                        self.c["active"],
                         self.decoders,
                         self.keyframe_dict,
                         self.estimate_c2w_list,
@@ -823,7 +820,7 @@ class Mapper(object):
                     mesh_out_file = f"{self.output}/mesh/final_mesh.ply"
                     self.mesher.get_mesh(
                         mesh_out_file,
-                        self.c,
+                        self.c["active"],
                         self.decoders,
                         self.keyframe_dict,
                         self.estimate_c2w_list,
@@ -840,7 +837,7 @@ class Mapper(object):
                         mesh_out_file = f"{self.output}/mesh/final_mesh_eval_rec.ply"
                         self.mesher.get_mesh(
                             mesh_out_file,
-                            self.c,
+                            self.c["active"],
                             self.decoders,
                             self.keyframe_dict,
                             self.estimate_c2w_list,

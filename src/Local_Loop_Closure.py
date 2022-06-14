@@ -14,7 +14,7 @@ from src.utils.datasets import get_dataset
 from src.utils.Visualizer import Visualizer
 
 
-class Tracker(object):
+class Local_Loop_Closure(object):
     def __init__(self, cfg, args, slam):
         self.cfg = cfg
         self.args = args
@@ -35,7 +35,6 @@ class Tracker(object):
         self.gt_c2w_list = slam.gt_c2w_list
         self.low_gpu_mem = slam.low_gpu_mem
         self.mapping_idx = slam.mapping_idx
-        self.mapping_cnt = slam.mapping_cnt
         self.shared_decoders = slam.shared_decoders
         self.estimate_c2w_list = slam.estimate_c2w_list
 
@@ -133,7 +132,7 @@ class Tracker(object):
             batch_gt_color = batch_gt_color[inside_mask]
 
         ret = self.renderer.render_batch_ray(
-            self.c["active"],
+            self.c,
             self.decoders,
             batch_rays_d,
             batch_rays_o,
@@ -172,13 +171,9 @@ class Tracker(object):
             if self.verbose:
                 print("Tracking: update the parameters from mapping")
             self.decoders = copy.deepcopy(self.shared_decoders).to(self.device)
-            # TODO: Potentially need to copy over the inactive shared items as well.
-            # Q: Why are we not using the self.shared_c variable directly?
-            # create active grid dictionary
-            self.c["active"] = {}
-            for key, val in self.shared_c["active"].items():
+            for key, val in self.shared_c.items():
                 val = val.clone().to(self.device)
-                self.c["active"][key] = val
+                self.c[key] = val
             self.prev_mapping_idx = self.mapping_idx[0].clone()
 
     def run(self):
@@ -197,6 +192,9 @@ class Tracker(object):
             gt_depth = gt_depth[0]
             gt_color = gt_color[0]
             gt_c2w = gt_c2w[0]
+
+            print("t_idx: ", idx)
+            print("m_idx: ", self.mapping_idx[0])
 
             if self.sync_method == "strict":
                 # strictly mapping and then tracking
@@ -227,9 +225,8 @@ class Tracker(object):
             if idx == 0 or self.gt_camera:
                 c2w = gt_c2w
                 if not self.no_vis_on_first_frame:
-                    # TODO: potentially use self.c["inactive"] for visualization instead of self.c["active"]
                     self.visualizer.vis(
-                        idx, 0, gt_depth, gt_color, c2w, self.c["active"], self.decoders
+                        idx, 0, gt_depth, gt_color, c2w, self.c, self.decoders
                     )
 
             else:
@@ -277,14 +274,13 @@ class Tracker(object):
                     if self.separate_LR:
                         camera_tensor = torch.cat([quad, T], 0).to(self.device)
 
-                    # TODO: potentially use self.c["inactive"] for visualization instead of self.c["active"]
                     self.visualizer.vis(
                         idx,
                         cam_iter,
                         gt_depth,
                         gt_color,
                         camera_tensor,
-                        self.c["active"],
+                        self.c,
                         self.decoders,
                     )
 

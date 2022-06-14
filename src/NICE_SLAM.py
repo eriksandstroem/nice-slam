@@ -1,5 +1,6 @@
 import os
 import time
+import copy
 
 import numpy as np
 import torch
@@ -88,10 +89,10 @@ class NICE_SLAM:
         self.mapping_idx.share_memory_()
         self.mapping_cnt = torch.zeros((1)).int()  # counter for mapping
         self.mapping_cnt.share_memory_()
-        for key, val in self.shared_c.items():
+        for key, val in self.shared_c["active"].items():
             val = val.to(self.cfg["mapping"]["device"])
             val.share_memory_()
-            self.shared_c[key] = val
+            self.shared_c["active"][key] = val
         self.shared_decoders = self.shared_decoders.to(self.cfg["mapping"]["device"])
         self.shared_decoders.share_memory()
         self.renderer = Renderer(cfg, args, self)
@@ -151,11 +152,11 @@ class NICE_SLAM:
         """
         # scale the bound if there is a global scaling factor
         self.bound = torch.from_numpy(np.array(cfg["mapping"]["bound"]) * self.scale)
-        bound_divisable = cfg["grid_len"]["bound_divisable"]
-        # enlarge the bound a bit to allow it divisable by bound_divisable
+        bound_divisible = cfg["grid_len"]["bound_divisible"]
+        # enlarge the bound a bit to allow it divisible by bound_divisible
         self.bound[:, 1] = (
-            ((self.bound[:, 1] - self.bound[:, 0]) / bound_divisable).int() + 1
-        ) * bound_divisable + self.bound[:, 0]
+            ((self.bound[:, 1] - self.bound[:, 0]) / bound_divisible).int() + 1
+        ) * bound_divisible + self.bound[:, 0]
         if self.nice:
             self.shared_decoders.bound = self.bound
             self.shared_decoders.middle_decoder.bound = self.bound
@@ -221,11 +222,11 @@ class NICE_SLAM:
         self.color_grid_len = color_grid_len
 
         c = {}
+        timestamps = {}
         c_dim = cfg["model"]["c_dim"]
         xyz_len = self.bound[:, 1] - self.bound[:, 0]
 
         if self.coarse:
-            coarse_key = "grid_coarse"
             coarse_val_shape = list(
                 map(
                     int,
@@ -239,9 +240,10 @@ class NICE_SLAM:
             self.coarse_val_shape = coarse_val_shape
             val_shape = [1, c_dim, *coarse_val_shape]
             coarse_val = torch.zeros(val_shape).normal_(mean=0, std=0.01)
-            c[coarse_key] = coarse_val
+            c["grid_coarse"] = coarse_val
+            c["weights_grid_coarse"] = torch.zeros(val_shape)
+            timestamps["coarse"] = torch.zeros(val_shape)
 
-        middle_key = "grid_middle"
         middle_val_shape = list(map(int, (xyz_len / middle_grid_len).tolist()))
         middle_val_shape[0], middle_val_shape[2] = (
             middle_val_shape[2],
@@ -250,25 +252,35 @@ class NICE_SLAM:
         self.middle_val_shape = middle_val_shape
         val_shape = [1, c_dim, *middle_val_shape]
         middle_val = torch.zeros(val_shape).normal_(mean=0, std=0.01)
-        c[middle_key] = middle_val
+        c["grid_middle"] = middle_val
+        c["weights_grid_middle"] = torch.zeros(val_shape)
+        timestamps["middle"] = torch.zeros(val_shape)
 
-        fine_key = "grid_fine"
         fine_val_shape = list(map(int, (xyz_len / fine_grid_len).tolist()))
         fine_val_shape[0], fine_val_shape[2] = fine_val_shape[2], fine_val_shape[0]
         self.fine_val_shape = fine_val_shape
         val_shape = [1, c_dim, *fine_val_shape]
         fine_val = torch.zeros(val_shape).normal_(mean=0, std=0.0001)
-        c[fine_key] = fine_val
+        c["grid_fine"] = fine_val
+        c["weights_grid_fine"] = torch.zeros(val_shape)
+        timestamps["fine"] = torch.zeros(val_shape)
 
-        color_key = "grid_color"
         color_val_shape = list(map(int, (xyz_len / color_grid_len).tolist()))
         color_val_shape[0], color_val_shape[2] = color_val_shape[2], color_val_shape[0]
         self.color_val_shape = color_val_shape
         val_shape = [1, c_dim, *color_val_shape]
         color_val = torch.zeros(val_shape).normal_(mean=0, std=0.01)
-        c[color_key] = color_val
+        c["grid_color"] = color_val
 
-        self.shared_c = c
+        self.shared_c = {}
+
+        if cfg["local_loop_closure"]["do"]:
+            self.shared_c["active"] = c
+            self.shared_c["inactive"] = copy.deepcopy(c)
+        else:
+            self.shared_c["active"] = c
+
+        self.shared_c["timestamps"] = timestamps
 
     def tracking(self, rank):
         """

@@ -5,7 +5,6 @@ import torch
 import torch.nn.functional as F
 import trimesh
 from packaging import version
-from src.utils.datasets import get_dataset
 
 
 class Mesher(object):
@@ -44,9 +43,6 @@ class Mesher(object):
 
         self.marching_cubes_bound = torch.from_numpy(
             np.array(cfg['mapping']['marching_cubes_bound']) * self.scale)
-
-        self.frame_reader = get_dataset(cfg, args, self.scale, device='cpu')
-        self.n_img = len(self.frame_reader)
 
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = slam.H, slam.W, slam.fx, slam.fy, slam.cx, slam.cy
 

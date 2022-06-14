@@ -9,7 +9,7 @@ grid_len:
   middle: 0.32 # voxel grid size in meters
   fine: 0.16 # voxel grid size in meters
   color: 0.16 # voxel grid size in meters
-  bound_divisable: 0.32 # not used anymore by NICE-SLAM. Legacy experiment
+  bound_divisible: 0.32 # not used anymore by NICE-SLAM. Legacy experiment
 pretrained_decoders:
   coarse: pretrained/coarse.pt
   middle_fine: pretrained/middle_fine.pt # one ckpt contain both middle and fine
@@ -40,6 +40,9 @@ tracking:
   lr: 0.001
   pixels: 200 # number of sampled rays per frame
   iters: 10 # how many iterations of optimizer per tracking stage
+local_loop_closure:
+  do: True
+  temporal_threshold: 200 # window of frames that are considered to be in active region
 mapping:
   device: "cuda:0"
   color_refine: True # refine color decoder at the end of trajectory capture as post processing step
